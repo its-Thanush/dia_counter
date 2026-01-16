@@ -1,6 +1,7 @@
 import 'package:dia_counter/customtext.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:gap/gap.dart';
 
 class Mainscreen extends StatefulWidget {
   const Mainscreen({super.key});
@@ -13,6 +14,7 @@ class _MainscreenState extends State<Mainscreen> {
   final TextEditingController qrController = TextEditingController();
   final TextEditingController actualSectionController = TextEditingController();
   final TextEditingController setPointController = TextEditingController();
+  final TextEditingController ScaleController = TextEditingController();
   final TextEditingController spSectionController = TextEditingController();
 
   final _formKey = GlobalKey<FormState>();
@@ -22,6 +24,7 @@ class _MainscreenState extends State<Mainscreen> {
     super.initState();
     actualSectionController.text = '0000.00';
     setPointController.text = '0000.00';
+    ScaleController.text = '0000.00';
   }
 
   @override
@@ -30,6 +33,7 @@ class _MainscreenState extends State<Mainscreen> {
     actualSectionController.dispose();
     setPointController.dispose();
     spSectionController.dispose();
+    ScaleController.dispose();
     super.dispose();
   }
 
@@ -38,6 +42,7 @@ class _MainscreenState extends State<Mainscreen> {
       qrController.clear();
       actualSectionController.text = '0000.00';
       setPointController.text = '0000.00';
+      ScaleController.text='0000.00';
       spSectionController.clear();
     });
     _formKey.currentState?.reset();
@@ -65,7 +70,6 @@ class _MainscreenState extends State<Mainscreen> {
   void _formatFloatOnChange(TextEditingController controller, String value) {
     String formatted = _formatFloatInput(value);
 
-    // Limit to 4 digits before decimal and 2 after
     if (formatted.contains('.')) {
       List<String> parts = formatted.split('.');
       String integerPart = parts[0].substring(0, parts[0].length > 4 ? 4 : parts[0].length);
@@ -103,6 +107,7 @@ class _MainscreenState extends State<Mainscreen> {
     return Scaffold(
       backgroundColor: Colors.grey[100],
       appBar: AppBar(
+        toolbarHeight: 30,
         title:  Text(
           "DIA COUNTER",
           style: TextStyle(
@@ -117,188 +122,238 @@ class _MainscreenState extends State<Mainscreen> {
       ),
       body: Form(
         key: _formKey,
-        child: SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.all(20.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const SizedBox(height: 10),
+        child: Padding(
+          padding:  EdgeInsets.all(20.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    flex: 1,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.blue.shade200,
+                          border: Border.all(color: Colors.blue),
+                          borderRadius: BorderRadius.circular(15),
+                        ),
+                        padding: EdgeInsets.symmetric(vertical: 8,horizontal: 10),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildLabel("QR Code"),
+                            SizedBox(height: 5),
+                            CustomText(text: "2954854215151411551515951985",size: 22,weight: FontWeight.bold,textOverflow: TextOverflow.ellipsis,),
+                          ],
+                        ),
+                      )
+                  ),
+                  Gap(20),
+                  Expanded(
+                    flex: 1,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.purple.shade200,
+                          border: Border.all(color: Colors.purple),
+                          borderRadius: BorderRadius.circular(15),
+                        ),
+                        padding: EdgeInsets.symmetric(vertical: 8,horizontal: 10),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildLabel("Actual Section"),
+                            SizedBox(height: 5),
+                            CustomText(text: "45582.00",size: 22,weight: FontWeight.bold,),
+                          ],
+                        ),
+                      )
+                  )
+                ],
+              ),
+              Row(
+                children: [
 
-                // QR Code Field
-                _buildLabel("QR Code"),
-                const SizedBox(height: 8),
-                CustomText(text: "58746541985151",),
-                // _buildTextField(
-                //   controller: qrController,
-                //   hintText: "Enter QR Code",
-                //   prefixIcon: Icons.qr_code_2,
-                //   validator: (value) {
-                //     if (value == null || value.isEmpty) {
-                //       return 'Please enter QR code';
-                //     }
-                //     return null;
-                //   },
-                // ),+
-
-                 SizedBox(height: 24),
-
-                _buildLabel("Actual Section"),
-                const SizedBox(height: 8),
-                CustomText(text: "45582.00",),
-                // _buildTextField(
-                //   controller: actualSectionController,
-                //   hintText: "0000.00",
-                //   prefixIcon: Icons.straighten,
-                //   keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                //   onChanged: (value) => _formatFloatOnChange(actualSectionController, value),
-                //   onTap: () {
-                //     if (actualSectionController.text == '0000.00') {
-                //       actualSectionController.clear();
-                //     }
-                //   },
-                //   onEditingComplete: () {
-                //     _formatFloatOnBlur(actualSectionController);
-                //     FocusScope.of(context).nextFocus();
-                //   },
-                //   validator: (value) {
-                //     if (value == null || value.isEmpty) {
-                //       return 'Please enter actual section';
-                //     }
-                //     return null;
-                //   },
-                // ),
-
-                const SizedBox(height: 24),
-
-                // Set Point Field
-                _buildLabel("Set Point"),
-                const SizedBox(height: 8),
-                _buildTextField(
-                  controller: setPointController,
-                  hintText: "0000.00",
-                  prefixIcon: Icons.track_changes,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  onChanged: (value) => _formatFloatOnChange(setPointController, value),
-                  onTap: () {
-                    if (setPointController.text == '0000.00') {
-                      setPointController.clear();
-                    }
-                  },
-                  onEditingComplete: () {
-                    _formatFloatOnBlur(setPointController);
-                    FocusScope.of(context).nextFocus();
-                  },
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please enter set point';
-                    }
-                    return null;
-                  },
-                ),
-
-                const SizedBox(height: 24),
-
-                // SP Section Field
-                _buildLabel("SP Section (0-9)"),
-                const SizedBox(height: 8),
-                _buildTextField(
-                  controller: spSectionController,
-                  hintText: "Enter value (0-9)",
-                  prefixIcon: Icons.filter_9_plus,
-                  keyboardType: TextInputType.number,
-                  inputFormatters: [
-                    FilteringTextInputFormatter.digitsOnly,
-                    LengthLimitingTextInputFormatter(1),
-                  ],
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please enter SP section';
-                    }
-                    int? intValue = int.tryParse(value);
-                    if (intValue == null || intValue < 0 || intValue > 9) {
-                      return 'Value must be between 0-9';
-                    }
-                    return null;
-                  },
-                ),
-
-                const SizedBox(height: 40),
-
-                // Reset Button
-                Center(
-                  child: ElevatedButton.icon(
-                    onPressed: _resetForm,
-                    icon: const Icon(Icons.refresh, size: 24),
-                    label: const Text(
-                      'RESET',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 1.2,
-                      ),
+                  Expanded(
+                    flex: 1,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const SizedBox(height: 24),
+                        _buildLabel("Set Point"),
+                        const SizedBox(height: 8),
+                        _buildTextField(
+                          controller: setPointController,
+                          hintText: "0000.00",
+                          prefixIcon: Icons.track_changes,
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          onChanged: (value) => _formatFloatOnChange(setPointController, value),
+                          onTap: () {
+                            if (setPointController.text == '0000.00') {
+                              setPointController.clear();
+                            }
+                          },
+                          onEditingComplete: () {
+                            _formatFloatOnBlur(setPointController);
+                            FocusScope.of(context).nextFocus();
+                          },
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Please enter set point';
+                            }
+                            return null;
+                          },
+                        ),
+                      ],
                     ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.orange[600],
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 40,
-                        vertical: 16,
-                      ),
-                      elevation: 3,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                  ),
+                  Gap(10),
+                  Expanded(
+                    flex: 1,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const SizedBox(height: 24),
+                        _buildLabel("Scale"),
+                        const SizedBox(height: 8),
+                        _buildTextField(
+                          controller: ScaleController,
+                          hintText: "0000.00",
+                          prefixIcon: Icons.track_changes,
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          onChanged: (value) => _formatFloatOnChange(ScaleController, value),
+                          onTap: () {
+                            if (ScaleController.text == '0000.00') {
+                              ScaleController.clear();
+                            }
+                          },
+                          onEditingComplete: () {
+                            _formatFloatOnBlur(ScaleController);
+                            FocusScope.of(context).nextFocus();
+                          },
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Please enter set point';
+                            }
+                            return null;
+                          },
+                        ),
+
+                      ],
+                    ),
+                  ),
+                  Gap(10),
+                  Expanded(
+                    flex: 1,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const SizedBox(height: 24),
+                        _buildLabel("SP"),
+                        const SizedBox(height: 8),
+                        _buildTextField(
+                          controller: spSectionController,
+                          hintText: "Enter value (0-9)",
+                          prefixIcon: Icons.filter_9_plus,
+                          keyboardType: TextInputType.number,
+                          inputFormatters: [
+                            FilteringTextInputFormatter.digitsOnly,
+                            LengthLimitingTextInputFormatter(1),
+                          ],
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Please enter SP section';
+                            }
+                            int? intValue = int.tryParse(value);
+                            if (intValue == null || intValue < 0 || intValue > 9) {
+                              return 'Value must be between 0-9';
+                            }
+                            return null;
+                          },
+                        ),
+
+                      ],
+                    ),
+                  )
+                ],
+              ),
+
+              Gap(20),
+
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  SizedBox(
+                    width: 200,
+                    child: Center(
+                      child: ElevatedButton.icon(
+                        onPressed: _resetForm,
+                        icon: const Icon(Icons.refresh, size: 24),
+                        label: const Text(
+                          'RESET',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 1.2,
+                          ),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.orange[600],
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 40,
+                            vertical: 16,
+                          ),
+                          elevation: 3,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
                       ),
                     ),
                   ),
-                ),
+                  SizedBox(
+                    width: 200,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        if (_formKey.currentState!.validate()) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                'QR: ${qrController.text}\n'
+                                    'Actual: ${actualSectionController.text}\n'
+                                    'Set Point: ${setPointController.text}\n'
+                                    'Scale : ${ScaleController.text}\n'
+                                    'SP Section: ${spSectionController.text}',
+                              ),
+                              duration: const Duration(seconds: 3),
+                              backgroundColor: Colors.blue[700],
+                            ),
+                          );
+                        }
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blue[700],
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        elevation: 2,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: const Text(
+                        'SUBMIT & PRINT',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 1.2,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              )
 
-                const SizedBox(height: 24),
-
-                // // Submit Button (optional)
-                // SizedBox(
-                //   width: double.infinity,
-                //   child: ElevatedButton(
-                //     onPressed: () {
-                //       if (_formKey.currentState!.validate()) {
-                //         // Process the data
-                //         ScaffoldMessenger.of(context).showSnackBar(
-                //           SnackBar(
-                //             content: Text(
-                //               'QR: ${qrController.text}\n'
-                //                   'Actual: ${actualSectionController.text}\n'
-                //                   'Set Point: ${setPointController.text}\n'
-                //                   'SP Section: ${spSectionController.text}',
-                //             ),
-                //             duration: const Duration(seconds: 3),
-                //             backgroundColor: Colors.blue[700],
-                //           ),
-                //         );
-                //       }
-                //     },
-                //     style: ElevatedButton.styleFrom(
-                //       backgroundColor: Colors.blue[700],
-                //       foregroundColor: Colors.white,
-                //       padding: const EdgeInsets.symmetric(vertical: 16),
-                //       elevation: 2,
-                //       shape: RoundedRectangleBorder(
-                //         borderRadius: BorderRadius.circular(12),
-                //       ),
-                //     ),
-                //     child: const Text(
-                //       'SUBMIT',
-                //       style: TextStyle(
-                //         fontSize: 16,
-                //         fontWeight: FontWeight.bold,
-                //         letterSpacing: 1.2,
-                //       ),
-                //     ),
-                //   ),
-                // ),
-
-                const SizedBox(height: 20),
-              ],
-            ),
+            ],
           ),
         ),
       ),
