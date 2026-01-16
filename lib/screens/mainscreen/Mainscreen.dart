@@ -1,7 +1,12 @@
+import 'dart:async';
+import 'dart:convert';
+
 import 'package:dia_counter/customtext.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:gap/gap.dart';
+
+import '../../widgets/SerialCommunication.dart';
 
 class Mainscreen extends StatefulWidget {
   const Mainscreen({super.key});
@@ -17,7 +22,14 @@ class _MainscreenState extends State<Mainscreen> {
   final TextEditingController ScaleController = TextEditingController();
   final TextEditingController spSectionController = TextEditingController();
 
+  String actualSectionValue = "0000.00";
+
+
   final _formKey = GlobalKey<FormState>();
+
+  final SerialService serialService = SerialService();
+  bool isNodeMCUOnline = false;
+  Timer? connectionCheckTimer;
 
   @override
   void initState() {
@@ -25,10 +37,47 @@ class _MainscreenState extends State<Mainscreen> {
     actualSectionController.text = '0000.00';
     setPointController.text = '0000.00';
     ScaleController.text = '0000.00';
+
+    serialService.onConnectionChanged = (bool status) {
+      setState(() {
+        isNodeMCUOnline = status;
+      });
+    };
+
+    connectionCheckTimer = Timer.periodic(const Duration(seconds: 3), (timer) {
+      _checkNodeMCUConnection();
+    });
+
+
+    serialService.onDataReceived = (Map<String, dynamic> data) {
+      if (data.containsKey('act')) {
+        setState(() {
+          actualSectionValue = data['act'].toString();
+        });
+      }
+    };
+
+
+    // Try to connect on startup
+    _connectToNodeMCU();
+  }
+
+  Future<void> _connectToNodeMCU() async {
+    await serialService.connect();
+  }
+
+  Future<void> _checkNodeMCUConnection() async {
+    bool connected = await serialService.checkConnection();
+    if (connected != isNodeMCUOnline) {
+      setState(() {
+        isNodeMCUOnline = connected;
+      });
+    }
   }
 
   @override
   void dispose() {
+    connectionCheckTimer?.cancel();
     qrController.dispose();
     actualSectionController.dispose();
     setPointController.dispose();
@@ -42,7 +91,7 @@ class _MainscreenState extends State<Mainscreen> {
       qrController.clear();
       actualSectionController.text = '0000.00';
       setPointController.text = '0000.00';
-      ScaleController.text='0000.00';
+      ScaleController.text = '0000.00';
       spSectionController.clear();
     });
     _formKey.currentState?.reset();
@@ -53,6 +102,55 @@ class _MainscreenState extends State<Mainscreen> {
         backgroundColor: Colors.green,
       ),
     );
+  }
+
+  Future<void> _submitAndPrint() async {
+    if (_formKey.currentState!.validate()) {
+      if (!isNodeMCUOnline) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('NodeMCU is not connected!'),
+            duration: Duration(seconds: 2),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
+      // Prepare JSON data
+      Map<String, dynamic> jsonData = {
+        "setpoint": setPointController.text,
+        "scale": ScaleController.text,
+        "sp": spSectionController.text,
+      };
+
+      print("Json ----->"+jsonEncode(jsonData));
+
+      try {
+        await serialService.sendJsonData(jsonData);
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Data sent to NodeMCU:\n'
+                  'Set Point: ${setPointController.text}\n'
+                  'Scale: ${ScaleController.text}\n'
+                  'SP Section: ${spSectionController.text}',
+            ),
+            duration: const Duration(seconds: 3),
+            backgroundColor: Colors.green[700],
+          ),
+        );
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error sending data: $e'),
+            duration: const Duration(seconds: 2),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   String _formatFloatInput(String value) {
@@ -74,7 +172,6 @@ class _MainscreenState extends State<Mainscreen> {
       List<String> parts = formatted.split('.');
       String integerPart = parts[0].substring(0, parts[0].length > 4 ? 4 : parts[0].length);
       String decimalPart = parts.length > 1 ? parts[1].substring(0, parts[1].length > 2 ? 2 : parts[1].length) : '';
-      formatted = '$integerPart.$decimalPart';
     } else {
       formatted = formatted.substring(0, formatted.length > 4 ? 4 : formatted.length);
     }
@@ -108,12 +205,38 @@ class _MainscreenState extends State<Mainscreen> {
       backgroundColor: Colors.grey[100],
       appBar: AppBar(
         toolbarHeight: 30,
-        title:  Text(
-          "DIA COUNTER",
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            letterSpacing: 1.2,
-          ),
+        title: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              "DIA COUNTER",
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                letterSpacing: 1.2,
+              ),
+            ),
+            Spacer(),
+            Container(
+              width: 12,
+              height: 12,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: isNodeMCUOnline ? Colors.green : Colors.red,
+                boxShadow: [
+                  BoxShadow(
+                    color: (isNodeMCUOnline ? Colors.green : Colors.red)
+                        .withOpacity(0.5),
+                    blurRadius: 6,
+                    spreadRadius: 1,
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(width: 16),
+
+          ],
         ),
         centerTitle: true,
         elevation: 0,
@@ -123,7 +246,7 @@ class _MainscreenState extends State<Mainscreen> {
       body: Form(
         key: _formKey,
         child: Padding(
-          padding:  EdgeInsets.all(20.0),
+          padding: const EdgeInsets.all(20.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -131,48 +254,56 @@ class _MainscreenState extends State<Mainscreen> {
                 children: [
                   Expanded(
                     flex: 1,
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: Colors.blue.shade200,
-                          border: Border.all(color: Colors.blue),
-                          borderRadius: BorderRadius.circular(15),
-                        ),
-                        padding: EdgeInsets.symmetric(vertical: 8,horizontal: 10),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            _buildLabel("QR Code"),
-                            SizedBox(height: 5),
-                            CustomText(text: "2954854215151411551515951985",size: 22,weight: FontWeight.bold,textOverflow: TextOverflow.ellipsis,),
-                          ],
-                        ),
-                      )
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.blue.shade200,
+                        border: Border.all(color: Colors.blue),
+                        borderRadius: BorderRadius.circular(15),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildLabel("QR Code"),
+                          const SizedBox(height: 5),
+                          const CustomText(
+                            text: "2954854215151411551515951985",
+                            size: 22,
+                            weight: FontWeight.bold,
+                            textOverflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
-                  Gap(20),
+                  const Gap(20),
                   Expanded(
                     flex: 1,
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: Colors.purple.shade200,
-                          border: Border.all(color: Colors.purple),
-                          borderRadius: BorderRadius.circular(15),
-                        ),
-                        padding: EdgeInsets.symmetric(vertical: 8,horizontal: 10),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            _buildLabel("Actual Section"),
-                            SizedBox(height: 5),
-                            CustomText(text: "45582.00",size: 22,weight: FontWeight.bold,),
-                          ],
-                        ),
-                      )
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.purple.shade200,
+                        border: Border.all(color: Colors.purple),
+                        borderRadius: BorderRadius.circular(15),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildLabel("Actual Section"),
+                          const SizedBox(height: 5),
+                           CustomText(
+                            text: actualSectionValue,
+                            size: 22,
+                            weight: FontWeight.bold,
+                          ),
+                        ],
+                      ),
+                    ),
                   )
                 ],
               ),
               Row(
                 children: [
-
                   Expanded(
                     flex: 1,
                     child: Column(
@@ -206,7 +337,7 @@ class _MainscreenState extends State<Mainscreen> {
                       ],
                     ),
                   ),
-                  Gap(10),
+                  const Gap(10),
                   Expanded(
                     flex: 1,
                     child: Column(
@@ -232,16 +363,15 @@ class _MainscreenState extends State<Mainscreen> {
                           },
                           validator: (value) {
                             if (value == null || value.isEmpty) {
-                              return 'Please enter set point';
+                              return 'Please enter scale';
                             }
                             return null;
                           },
                         ),
-
                       ],
                     ),
                   ),
-                  Gap(10),
+                  const Gap(10),
                   Expanded(
                     flex: 1,
                     child: Column(
@@ -270,15 +400,12 @@ class _MainscreenState extends State<Mainscreen> {
                             return null;
                           },
                         ),
-
                       ],
                     ),
                   )
                 ],
               ),
-
-              Gap(20),
-
+              const Gap(20),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
@@ -314,23 +441,7 @@ class _MainscreenState extends State<Mainscreen> {
                   SizedBox(
                     width: 200,
                     child: ElevatedButton(
-                      onPressed: () {
-                        if (_formKey.currentState!.validate()) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                'QR: ${qrController.text}\n'
-                                    'Actual: ${actualSectionController.text}\n'
-                                    'Set Point: ${setPointController.text}\n'
-                                    'Scale : ${ScaleController.text}\n'
-                                    'SP Section: ${spSectionController.text}',
-                              ),
-                              duration: const Duration(seconds: 3),
-                              backgroundColor: Colors.blue[700],
-                            ),
-                          );
-                        }
-                      },
+                      onPressed: _submitAndPrint,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.blue[700],
                         foregroundColor: Colors.white,
@@ -352,7 +463,6 @@ class _MainscreenState extends State<Mainscreen> {
                   ),
                 ],
               )
-
             ],
           ),
         ),
