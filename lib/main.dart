@@ -1,7 +1,15 @@
 import 'package:dia_counter/screens/mainscreen/Mainscreen.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 void main() {
+
+  SystemChrome.setPreferredOrientations([
+    DeviceOrientation.landscapeLeft,
+    DeviceOrientation.landscapeRight,
+  ]);
+
+
   runApp(const MyApp());
 }
 

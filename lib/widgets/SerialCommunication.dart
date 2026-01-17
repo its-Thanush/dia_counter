@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:usb_serial/usb_serial.dart';
 import 'dart:convert';
 import 'dart:typed_data';
@@ -6,6 +7,7 @@ class SerialService {
   static final SerialService _instance = SerialService._internal();
   factory SerialService() => _instance;
   SerialService._internal();
+  String _buffer = '';
 
   UsbPort? _port;
   bool isConnected = false;
@@ -55,11 +57,14 @@ class SerialService {
       );
 
       print("Connected successfully!");
-      await Future.delayed(Duration(milliseconds: 500));
+
+      _buffer = '';
+      await Future.delayed(Duration(milliseconds: 1000)); // Increase delay
 
       isConnected = true;
       onConnectionChanged?.call(true);
       startListening();
+
       return true;
     } catch (e) {
       print("Connection error: $e");
@@ -68,6 +73,9 @@ class SerialService {
       return false;
     }
   }
+
+
+
 
   // Send data to NodeMCU
   Future<void> sendData(String data) async {
@@ -109,11 +117,23 @@ class SerialService {
   void startListening() {
     _port?.inputStream?.listen((Uint8List data) {
       String received = String.fromCharCodes(data);
-      try {
-        Map<String, dynamic> jsonData = json.decode(received);
-        onDataReceived?.call(jsonData);
-      } catch (e) {
-        print("Error parsing JSON: $e");
+      _buffer += received;
+
+      // Process complete messages (ending with newline)
+      while (_buffer.contains('\n')) {
+        int newlineIndex = _buffer.indexOf('\n');
+        String message = _buffer.substring(0, newlineIndex).trim();
+        _buffer = _buffer.substring(newlineIndex + 1);
+
+        if (message.isNotEmpty) {
+          try {
+            Map<String, dynamic> jsonData = json.decode(message);
+            onDataReceived?.call(jsonData);
+            print("Received: $jsonData");
+          } catch (e) {
+            print("Error parsing JSON: $e, Raw: $message");
+          }
+        }
       }
     });
   }
@@ -158,4 +178,5 @@ class SerialService {
       print("Error disconnecting: $e");
     }
   }
+
 }

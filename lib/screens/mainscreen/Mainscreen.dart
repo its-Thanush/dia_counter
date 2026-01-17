@@ -24,12 +24,16 @@ class _MainscreenState extends State<Mainscreen> {
 
   String actualSectionValue = "0000.00";
 
+  String actualCoilCount = "";
+
 
   final _formKey = GlobalKey<FormState>();
 
   final SerialService serialService = SerialService();
   bool isNodeMCUOnline = false;
   Timer? connectionCheckTimer;
+  bool connectedNode =false;
+
 
   @override
   void initState() {
@@ -38,33 +42,117 @@ class _MainscreenState extends State<Mainscreen> {
     setPointController.text = '0000.00';
     ScaleController.text = '0000.00';
 
+
     serialService.onConnectionChanged = (bool status) {
       setState(() {
         isNodeMCUOnline = status;
       });
+      _showConnectionStatus(status);
     };
+
+    serialService.onDataReceived = (Map<String, dynamic> data) {
+      if (data.containsKey('actual')) {
+        setState(() {
+          actualSectionValue = data['actual'].toString();
+        });
+      }
+      if (data.containsKey('coil')) {
+        setState(() {
+          actualCoilCount = data['coil'].toString();
+        });
+      }
+
+    };
+
+    // Keep only this one
+    _connectToNodeMCU();
 
     connectionCheckTimer = Timer.periodic(const Duration(seconds: 3), (timer) {
       _checkNodeMCUConnection();
     });
-
-
-    serialService.onDataReceived = (Map<String, dynamic> data) {
-      if (data.containsKey('act')) {
-        setState(() {
-          actualSectionValue = data['act'].toString();
-        });
-      }
-    };
-
-
-    // Try to connect on startup
-    _connectToNodeMCU();
   }
+  // void initState() {
+  //   super.initState();
+  //   actualSectionController.text = '0000.00';
+  //   setPointController.text = '0000.00';
+  //   ScaleController.text = '0000.00';
+  //
+  //
+  //   _initNodeMCUConnection();
+  //
+  //
+  //   serialService.onConnectionChanged = (bool status) {
+  //     setState(() {
+  //       isNodeMCUOnline = status;
+  //     });
+  //   };
+  //
+  //   connectionCheckTimer = Timer.periodic(const Duration(seconds: 3), (timer) {
+  //     _checkNodeMCUConnection();
+  //   });
+  //
+  //
+  //   serialService.onDataReceived = (Map<String, dynamic> data) {
+  //     if (data.containsKey('act')) {
+  //       setState(() {
+  //         actualSectionValue = data['act'].toString();
+  //       });
+  //     }
+  //   };
+  //
+  //
+  //   // Try to connect on startup
+  //   _connectToNodeMCU();
+  // }
+
+
+  void _showConnectionStatus(bool connected) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          connected ? 'NodeMCU Connected Successfully!' : 'NodeMCU Disconnected!',
+        ),
+        duration: const Duration(seconds: 2),
+        backgroundColor: connected ? Colors.green : Colors.red,
+      ),
+    );
+  }
+
+  Future<void> _initNodeMCUConnection() async {
+    bool connected = await serialService.connect();
+    setState(() {
+      isNodeMCUOnline = connected;
+    });
+  }
+
 
   Future<void> _connectToNodeMCU() async {
-    await serialService.connect();
+    try {
+      bool connected = await serialService.connect();
+      if (!connected) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Failed to connect. Check USB permissions and cable.'),
+              backgroundColor: Colors.orange,
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Connection error: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    }
   }
+
 
   Future<void> _checkNodeMCUConnection() async {
     bool connected = await serialService.checkConnection();
@@ -72,6 +160,45 @@ class _MainscreenState extends State<Mainscreen> {
       setState(() {
         isNodeMCUOnline = connected;
       });
+    }
+  }
+
+  Future<void> _manualConnectNodeMCU() async {
+    // Show connecting indicator
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Connecting to NodeMCU...'),
+        duration: Duration(seconds: 2),
+        backgroundColor: Colors.blue,
+      ),
+    );
+
+    try {
+      connectedNode = await serialService.connect();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              connectedNode
+                  ? 'NodeMCU Connected Successfully!'
+                  : 'Connection Failed! Check USB cable and permissions.',
+            ),
+            duration: const Duration(seconds: 3),
+            backgroundColor: connectedNode ? Colors.green : Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            duration: const Duration(seconds: 3),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -106,20 +233,20 @@ class _MainscreenState extends State<Mainscreen> {
 
   Future<void> _submitAndPrint() async {
     if (_formKey.currentState!.validate()) {
-      if (!isNodeMCUOnline) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('NodeMCU is not connected!'),
-            duration: Duration(seconds: 2),
-            backgroundColor: Colors.red,
-          ),
-        );
-        return;
-      }
+      // if (!isNodeMCUOnline) {
+      //   ScaffoldMessenger.of(context).showSnackBar(
+      //     const SnackBar(
+      //       content: Text('NodeMCU is not connected!'),
+      //       duration: Duration(seconds: 2),
+      //       backgroundColor: Colors.red,
+      //     ),
+      //   );
+      //   return;
+      // }
 
       // Prepare JSON data
       Map<String, dynamic> jsonData = {
-        "setpoint": setPointController.text,
+        "set": setPointController.text,
         "scale": ScaleController.text,
         "sp": spSectionController.text,
       };
@@ -132,10 +259,51 @@ class _MainscreenState extends State<Mainscreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Data sent to NodeMCU:\n'
-                  'Set Point: ${setPointController.text}\n'
-                  'Scale: ${ScaleController.text}\n'
-                  'SP Section: ${spSectionController.text}',
+              'Data sent to NodeMCU',
+            ),
+            duration: const Duration(seconds: 3),
+            backgroundColor: Colors.green[700],
+          ),
+        );
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error sending data: $e'),
+            duration: const Duration(seconds: 2),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _Print_clear() async {
+    if (_formKey.currentState!.validate()) {
+      // if (!isNodeMCUOnline) {
+      //   ScaffoldMessenger.of(context).showSnackBar(
+      //     const SnackBar(
+      //       content: Text('NodeMCU is not connected!'),
+      //       duration: Duration(seconds: 2),
+      //       backgroundColor: Colors.red,
+      //     ),
+      //   );
+      //   return;
+      // }
+
+      // Prepare JSON data
+      Map<String, dynamic> jsonData = {
+        "print":"1",
+      };
+
+      print("print---Json ----->"+jsonEncode(jsonData));
+
+      try {
+        await serialService.sendJsonData(jsonData);
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Printed successfully',
             ),
             duration: const Duration(seconds: 3),
             backgroundColor: Colors.green[700],
@@ -201,6 +369,7 @@ class _MainscreenState extends State<Mainscreen> {
 
   @override
   Widget build(BuildContext context) {
+
     return Scaffold(
       backgroundColor: Colors.grey[100],
       appBar: AppBar(
@@ -264,10 +433,10 @@ class _MainscreenState extends State<Mainscreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          _buildLabel("QR Code"),
+                          _buildLabel("Coil Number"),
                           const SizedBox(height: 5),
                           const CustomText(
-                            text: "2954854215151411551515951985",
+                            text: "No coil",
                             size: 22,
                             weight: FontWeight.bold,
                             textOverflow: TextOverflow.ellipsis,
@@ -289,7 +458,7 @@ class _MainscreenState extends State<Mainscreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          _buildLabel("Actual Section"),
+                          _buildLabel("Actual dia count"),
                           const SizedBox(height: 5),
                            CustomText(
                             text: actualSectionValue,
@@ -410,19 +579,10 @@ class _MainscreenState extends State<Mainscreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
                   SizedBox(
-                    width: 200,
+                    width: 150,
                     child: Center(
-                      child: ElevatedButton.icon(
+                      child: ElevatedButton(
                         onPressed: _resetForm,
-                        icon: const Icon(Icons.refresh, size: 24),
-                        label: const Text(
-                          'RESET',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 1.2,
-                          ),
-                        ),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.orange[600],
                           foregroundColor: Colors.white,
@@ -434,6 +594,53 @@ class _MainscreenState extends State<Mainscreen> {
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
+                        ), child: Text("Reset",style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1.2,
+                      ),),
+                      ),
+                    ),
+                  ),
+                  !connectedNode?SizedBox(
+                    child: Center(
+                      child: ElevatedButton(
+                        onPressed: (){
+                          _manualConnectNodeMCU();
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.orange[600],
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 40,
+                            vertical: 16,
+                          ),
+                          elevation: 3,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ), child: Icon(Icons.refresh,color: Colors.white,size: 24,),
+                      ),
+                    ),
+                  ):SizedBox(),
+                  SizedBox(
+                    child: ElevatedButton(
+                      onPressed: _submitAndPrint,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blue[700],
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 16,horizontal: 10),
+                        elevation: 2,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: Text(
+                        'Submit',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 1.2,
                         ),
                       ),
                     ),
@@ -441,9 +648,9 @@ class _MainscreenState extends State<Mainscreen> {
                   SizedBox(
                     width: 200,
                     child: ElevatedButton(
-                      onPressed: _submitAndPrint,
+                      onPressed: _Print_clear,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue[700],
+                        backgroundColor: Colors.red[700],
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         elevation: 2,
@@ -452,7 +659,7 @@ class _MainscreenState extends State<Mainscreen> {
                         ),
                       ),
                       child: const Text(
-                        'SUBMIT & PRINT',
+                        'Print & Clear',
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
