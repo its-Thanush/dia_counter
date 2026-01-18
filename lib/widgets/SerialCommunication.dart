@@ -29,7 +29,25 @@ class SerialService {
 
       print("Found ${devices.length} device(s)");
 
-      _port = await devices[0].create();
+      UsbDevice? nodeMCUDevice;
+      for (var device in devices) {
+        print("Device: ${device.productName}, VID: ${device.vid}, PID: ${device.pid}");
+        if (device.vid == 4292 || device.vid == 6790 ||
+            device.productName?.toLowerCase().contains('ch340') == true ||
+            device.productName?.toLowerCase().contains('cp210') == true ||
+            device.productName?.toLowerCase().contains('usb-serial') == true) {
+          nodeMCUDevice = device;
+          print("NodeMCU device found: ${device.productName}");
+          break;
+        }
+      }
+
+      if (nodeMCUDevice == null) {
+        print("NodeMCU not found, using first device");
+        nodeMCUDevice = devices[0];
+      }
+
+      _port = await nodeMCUDevice.create();
 
       if (_port == null) {
         print("Failed to create port");

@@ -26,6 +26,8 @@ class _MainscreenState extends State<Mainscreen> {
 
   String actualCoilCount = "";
 
+  String QrScannedValue ="";
+
 
   final _formKey = GlobalKey<FormState>();
 
@@ -34,6 +36,9 @@ class _MainscreenState extends State<Mainscreen> {
   Timer? connectionCheckTimer;
   bool connectedNode =false;
 
+
+  // final FocusNode _qrFocusNode = FocusNode();
+  String _qrBuffer = "";
 
   @override
   void initState() {
@@ -70,40 +75,61 @@ class _MainscreenState extends State<Mainscreen> {
     connectionCheckTimer = Timer.periodic(const Duration(seconds: 3), (timer) {
       _checkNodeMCUConnection();
     });
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ServicesBinding.instance.keyboard.addHandler(_handleRawKeyEvent);
+    });
+
   }
-  // void initState() {
-  //   super.initState();
-  //   actualSectionController.text = '0000.00';
-  //   setPointController.text = '0000.00';
-  //   ScaleController.text = '0000.00';
+
+  bool _handleRawKeyEvent(KeyEvent event) {
+    if (FocusScope.of(context).hasFocus &&
+        (FocusScope.of(context).focusedChild?.context?.widget is TextFormField)) {
+      return false;
+    }
+
+    if (event is KeyDownEvent) {
+      if (event.logicalKey == LogicalKeyboardKey.enter) {
+        if (_qrBuffer.isNotEmpty) {
+          setState(() {
+            QrScannedValue = _qrBuffer;
+          });
+          _qrBuffer = "";
+        }
+      } else if (event.character != null && event.character!.isNotEmpty) {
+        _qrBuffer += event.character!;
+      }
+    }
+    return false;
+  }
+
   //
+  // bool _handleRawKeyEvent(KeyEvent event) {
+  //   final focusedWidget = FocusScope.of(context).focusedChild?.context?.widget;
   //
-  //   _initNodeMCUConnection();
+  //   if (focusedWidget is TextFormField) {
+  //     _qrBuffer = "";
+  //     return false;
+  //   }
   //
-  //
-  //   serialService.onConnectionChanged = (bool status) {
-  //     setState(() {
-  //       isNodeMCUOnline = status;
-  //     });
-  //   };
-  //
-  //   connectionCheckTimer = Timer.periodic(const Duration(seconds: 3), (timer) {
-  //     _checkNodeMCUConnection();
-  //   });
-  //
-  //
-  //   serialService.onDataReceived = (Map<String, dynamic> data) {
-  //     if (data.containsKey('act')) {
-  //       setState(() {
-  //         actualSectionValue = data['act'].toString();
-  //       });
+  //   if (event is KeyDownEvent) {
+  //     if (event.logicalKey == LogicalKeyboardKey.enter) {
+  //       if (_qrBuffer.isNotEmpty) {
+  //         setState(() {
+  //           QrScannedValue = _qrBuffer;
+  //         });
+  //         _qrBuffer = "";
+  //       }
+  //       return true;
+  //     } else if (event.character != null && event.character!.isNotEmpty) {
+  //       _qrBuffer += event.character!;
+  //       return true;
   //     }
-  //   };
-  //
-  //
-  //   // Try to connect on startup
-  //   _connectToNodeMCU();
+  //   }
+  //   return false;
   // }
+
+
 
 
   void _showConnectionStatus(bool connected) {
@@ -204,12 +230,14 @@ class _MainscreenState extends State<Mainscreen> {
 
   @override
   void dispose() {
+    ServicesBinding.instance.keyboard.removeHandler(_handleRawKeyEvent);
     connectionCheckTimer?.cancel();
     qrController.dispose();
     actualSectionController.dispose();
     setPointController.dispose();
     spSectionController.dispose();
     ScaleController.dispose();
+    // _qrFocusNode.dispose();
     super.dispose();
   }
 
@@ -220,6 +248,7 @@ class _MainscreenState extends State<Mainscreen> {
       setPointController.text = '0000.00';
       ScaleController.text = '0000.00';
       spSectionController.clear();
+      QrScannedValue = "";
     });
     _formKey.currentState?.reset();
     ScaffoldMessenger.of(context).showSnackBar(
@@ -244,11 +273,13 @@ class _MainscreenState extends State<Mainscreen> {
       //   return;
       // }
 
+
       // Prepare JSON data
       Map<String, dynamic> jsonData = {
         "set": setPointController.text,
         "scale": ScaleController.text,
         "sp": spSectionController.text,
+        "qr":QrScannedValue,
       };
 
       print("Json ----->"+jsonEncode(jsonData));
@@ -294,6 +325,9 @@ class _MainscreenState extends State<Mainscreen> {
       Map<String, dynamic> jsonData = {
         "print":"1",
       };
+
+      QrScannedValue="NO QR SCANNED";
+
 
       print("print---Json ----->"+jsonEncode(jsonData));
 
@@ -416,261 +450,263 @@ class _MainscreenState extends State<Mainscreen> {
         key: _formKey,
         child: Padding(
           padding: const EdgeInsets.all(20.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    flex: 1,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Colors.blue.shade200,
-                        border: Border.all(color: Colors.blue),
-                        borderRadius: BorderRadius.circular(15),
-                      ),
-                      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _buildLabel("Coil Number"),
-                          const SizedBox(height: 5),
-                          const CustomText(
-                            text: "No coil",
-                            size: 22,
-                            weight: FontWeight.bold,
-                            textOverflow: TextOverflow.ellipsis,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const Gap(20),
-                  Expanded(
-                    flex: 1,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Colors.purple.shade200,
-                        border: Border.all(color: Colors.purple),
-                        borderRadius: BorderRadius.circular(15),
-                      ),
-                      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _buildLabel("Actual dia count"),
-                          const SizedBox(height: 5),
-                           CustomText(
-                            text: actualSectionValue,
-                            size: 22,
-                            weight: FontWeight.bold,
-                          ),
-                        ],
-                      ),
-                    ),
-                  )
-                ],
-              ),
-              Row(
-                children: [
-                  Expanded(
-                    flex: 1,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const SizedBox(height: 24),
-                        _buildLabel("Set Point"),
-                        const SizedBox(height: 8),
-                        _buildTextField(
-                          controller: setPointController,
-                          hintText: "0000.00",
-                          prefixIcon: Icons.track_changes,
-                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                          onChanged: (value) => _formatFloatOnChange(setPointController, value),
-                          onTap: () {
-                            if (setPointController.text == '0000.00') {
-                              setPointController.clear();
-                            }
-                          },
-                          onEditingComplete: () {
-                            _formatFloatOnBlur(setPointController);
-                            FocusScope.of(context).nextFocus();
-                          },
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Please enter set point';
-                            }
-                            return null;
-                          },
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      flex: 1,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.blue.shade200,
+                          border: Border.all(color: Colors.blue),
+                          borderRadius: BorderRadius.circular(15),
                         ),
-                      ],
-                    ),
-                  ),
-                  const Gap(10),
-                  Expanded(
-                    flex: 1,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const SizedBox(height: 24),
-                        _buildLabel("Scale"),
-                        const SizedBox(height: 8),
-                        _buildTextField(
-                          controller: ScaleController,
-                          hintText: "0000.00",
-                          prefixIcon: Icons.track_changes,
-                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                          onChanged: (value) => _formatFloatOnChange(ScaleController, value),
-                          onTap: () {
-                            if (ScaleController.text == '0000.00') {
-                              ScaleController.clear();
-                            }
-                          },
-                          onEditingComplete: () {
-                            _formatFloatOnBlur(ScaleController);
-                            FocusScope.of(context).nextFocus();
-                          },
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Please enter scale';
-                            }
-                            return null;
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                  const Gap(10),
-                  Expanded(
-                    flex: 1,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const SizedBox(height: 24),
-                        _buildLabel("SP"),
-                        const SizedBox(height: 8),
-                        _buildTextField(
-                          controller: spSectionController,
-                          hintText: "Enter value (0-9)",
-                          prefixIcon: Icons.filter_9_plus,
-                          keyboardType: TextInputType.number,
-                          inputFormatters: [
-                            FilteringTextInputFormatter.digitsOnly,
-                            LengthLimitingTextInputFormatter(1),
+                        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildLabel("Coil Number"),
+                             SizedBox(height: 5),
+                             CustomText(
+                              text: QrScannedValue,
+                              size: 22,
+                              weight: FontWeight.bold,
+                              textOverflow: TextOverflow.ellipsis,
+                            ),
                           ],
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Please enter SP section';
-                            }
-                            int? intValue = int.tryParse(value);
-                            if (intValue == null || intValue < 0 || intValue > 9) {
-                              return 'Value must be between 0-9';
-                            }
-                            return null;
+                        ),
+                      ),
+                    ),
+                    const Gap(20),
+                    Expanded(
+                      flex: 1,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.purple.shade200,
+                          border: Border.all(color: Colors.purple),
+                          borderRadius: BorderRadius.circular(15),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildLabel("Actual dia count"),
+                            const SizedBox(height: 5),
+                             CustomText(
+                              text: actualSectionValue,
+                              size: 22,
+                              weight: FontWeight.bold,
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                  ],
+                ),
+                Row(
+                  children: [
+                    Expanded(
+                      flex: 1,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const SizedBox(height: 24),
+                          _buildLabel("Set Point"),
+                          const SizedBox(height: 8),
+                          _buildTextField(
+                            controller: setPointController,
+                            hintText: "0000.00",
+                            prefixIcon: Icons.track_changes,
+                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            onChanged: (value) => _formatFloatOnChange(setPointController, value),
+                            onTap: () {
+                              if (setPointController.text == '0000.00') {
+                                setPointController.clear();
+                              }
+                            },
+                            onEditingComplete: () {
+                              _formatFloatOnBlur(setPointController);
+                              FocusScope.of(context).nextFocus();
+                            },
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return 'Please enter set point';
+                              }
+                              return null;
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Gap(10),
+                    Expanded(
+                      flex: 1,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const SizedBox(height: 24),
+                          _buildLabel("Scale"),
+                          const SizedBox(height: 8),
+                          _buildTextField(
+                            controller: ScaleController,
+                            hintText: "0000.00",
+                            prefixIcon: Icons.track_changes,
+                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            onChanged: (value) => _formatFloatOnChange(ScaleController, value),
+                            onTap: () {
+                              if (ScaleController.text == '0000.00') {
+                                ScaleController.clear();
+                              }
+                            },
+                            onEditingComplete: () {
+                              _formatFloatOnBlur(ScaleController);
+                              FocusScope.of(context).nextFocus();
+                            },
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return 'Please enter scale';
+                              }
+                              return null;
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Gap(10),
+                    Expanded(
+                      flex: 1,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const SizedBox(height: 24),
+                          _buildLabel("SP"),
+                          const SizedBox(height: 8),
+                          _buildTextField(
+                            controller: spSectionController,
+                            hintText: "Enter value (0-9)",
+                            prefixIcon: Icons.filter_9_plus,
+                            keyboardType: TextInputType.number,
+                            inputFormatters: [
+                              FilteringTextInputFormatter.digitsOnly,
+                              LengthLimitingTextInputFormatter(1),
+                            ],
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return 'Please enter SP section';
+                              }
+                              int? intValue = int.tryParse(value);
+                              if (intValue == null || intValue < 0 || intValue > 9) {
+                                return 'Value must be between 0-9';
+                              }
+                              return null;
+                            },
+                          ),
+                        ],
+                      ),
+                    )
+                  ],
+                ),
+                const Gap(20),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    SizedBox(
+                      width: 150,
+                      child: Center(
+                        child: ElevatedButton(
+                          onPressed: _resetForm,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.orange[600],
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 40,
+                              vertical: 16,
+                            ),
+                            elevation: 3,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ), child: Text("Reset",style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 1.2,
+                        ),),
+                        ),
+                      ),
+                    ),
+                    !connectedNode?SizedBox(
+                      child: Center(
+                        child: ElevatedButton(
+                          onPressed: (){
+                            _manualConnectNodeMCU();
                           },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.orange[600],
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 40,
+                              vertical: 16,
+                            ),
+                            elevation: 3,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ), child: Icon(Icons.refresh,color: Colors.white,size: 24,),
                         ),
-                      ],
-                    ),
-                  )
-                ],
-              ),
-              const Gap(20),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  SizedBox(
-                    width: 150,
-                    child: Center(
+                      ),
+                    ):SizedBox(),
+                    SizedBox(
                       child: ElevatedButton(
-                        onPressed: _resetForm,
+                        onPressed: _submitAndPrint,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.orange[600],
+                          backgroundColor: Colors.blue[700],
                           foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 40,
-                            vertical: 16,
-                          ),
-                          elevation: 3,
+                          padding: const EdgeInsets.symmetric(vertical: 16,horizontal: 10),
+                          elevation: 2,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
-                        ), child: Text("Reset",style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 1.2,
-                      ),),
+                        ),
+                        child: Text(
+                          'Submit',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 1.2,
+                          ),
+                        ),
                       ),
                     ),
-                  ),
-                  !connectedNode?SizedBox(
-                    child: Center(
+                    SizedBox(
+                      width: 200,
                       child: ElevatedButton(
-                        onPressed: (){
-                          _manualConnectNodeMCU();
-                        },
+                        onPressed: _Print_clear,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.orange[600],
+                          backgroundColor: Colors.red[700],
                           foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 40,
-                            vertical: 16,
-                          ),
-                          elevation: 3,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          elevation: 2,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
-                        ), child: Icon(Icons.refresh,color: Colors.white,size: 24,),
-                      ),
-                    ),
-                  ):SizedBox(),
-                  SizedBox(
-                    child: ElevatedButton(
-                      onPressed: _submitAndPrint,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue[700],
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 16,horizontal: 10),
-                        elevation: 2,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
                         ),
-                      ),
-                      child: Text(
-                        'Submit',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 1.2,
+                        child: const Text(
+                          'Print & Clear',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 1.2,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                  SizedBox(
-                    width: 200,
-                    child: ElevatedButton(
-                      onPressed: _Print_clear,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.red[700],
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        elevation: 2,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      child: const Text(
-                        'Print & Clear',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 1.2,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              )
-            ],
+                  ],
+                )
+              ],
+            ),
           ),
         ),
       ),
