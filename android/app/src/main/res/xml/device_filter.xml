@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- NodeMCU/CH340 -->
+    <usb-device vendor-id="4292" product-id="60000" />
+    <!-- Generic USB Serial -->
+    <usb-device vendor-id="6790" />
+    <!-- Bluetooth devices -->
+    <usb-device vendor-id="5735" />
+    <!-- Catch-all for any USB serial device -->
+    <usb-device vendor-id="0x0000" product-id="0x0000" />
+</resources>

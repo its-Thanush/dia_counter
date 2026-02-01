@@ -5,6 +5,7 @@ import 'package:dia_counter/customtext.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:gap/gap.dart';
+import 'package:usb_serial/usb_serial.dart';
 
 import '../../widgets/SerialCommunication.dart';
 
@@ -22,7 +23,7 @@ class _MainscreenState extends State<Mainscreen> {
   final TextEditingController ScaleController = TextEditingController();
   final TextEditingController spSectionController = TextEditingController();
 
-  String actualSectionValue = "0000.00";
+  String actualSectionValue = "0005.00";
 
   String actualCoilCount = "";
 
@@ -47,7 +48,6 @@ class _MainscreenState extends State<Mainscreen> {
     setPointController.text = '0000.00';
     ScaleController.text = '0000.00';
 
-
     serialService.onConnectionChanged = (bool status) {
       setState(() {
         isNodeMCUOnline = status;
@@ -66,10 +66,9 @@ class _MainscreenState extends State<Mainscreen> {
           actualCoilCount = data['coil'].toString();
         });
       }
-
     };
 
-    // Keep only this one
+    // Just call connect - it will prompt for permission automatically
     _connectToNodeMCU();
 
     connectionCheckTimer = Timer.periodic(const Duration(seconds: 3), (timer) {
@@ -79,7 +78,6 @@ class _MainscreenState extends State<Mainscreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ServicesBinding.instance.keyboard.addHandler(_handleRawKeyEvent);
     });
-
   }
 
   bool _handleRawKeyEvent(KeyEvent event) {
@@ -102,6 +100,26 @@ class _MainscreenState extends State<Mainscreen> {
     }
     return false;
   }
+
+  // Future<void> _requestPermissionsAndConnect() async {
+  //   try {
+  //     // Request permissions for all USB devices first
+  //     List<UsbDevice> devices = await UsbSerial.listDevices();
+  //
+  //     for (var device in devices) {
+  //       await UsbSerial.requestPermission(device);
+  //     }
+  //
+  //     // Wait a moment for permissions to be granted
+  //     await Future.delayed(Duration(milliseconds: 1500));
+  //
+  //     // Then try to connect
+  //     _connectToNodeMCU();
+  //   } catch (e) {
+  //     print("Permission request error: $e");
+  //     _connectToNodeMCU(); // Try connecting anyway
+  //   }
+  // }
 
   //
   // bool _handleRawKeyEvent(KeyEvent event) {

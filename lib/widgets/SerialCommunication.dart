@@ -8,92 +8,214 @@ class SerialService {
   factory SerialService() => _instance;
   SerialService._internal();
   String _buffer = '';
+  String _bluetoothBuffer = '';
 
   UsbPort? _port;
+  UsbPort? _bluetoothPort;
   bool isConnected = false;
+  bool isBluetoothConnected = false;
   Function(bool)? onConnectionChanged;
+  Function(bool)? onBluetoothConnectionChanged;
 
   Function(Map<String, dynamic>)? onDataReceived;
+  Function(Map<String, dynamic>)? onBluetoothDataReceived;
 
-  // Connect to device
-  Future<bool> connect() async {
+  Function(String)? onDeviceInfoUpdate;
+
+  Future<UsbPort?> _connectToNodeMCU() async {
     try {
       List<UsbDevice> devices = await UsbSerial.listDevices();
 
       if (devices.isEmpty) {
         print("No devices found");
-        isConnected = false;
-        onConnectionChanged?.call(false);
-        return false;
+        onDeviceInfoUpdate?.call("❌ No devices found");
+        return null;
       }
 
       print("Found ${devices.length} device(s)");
+      onDeviceInfoUpdate?.call("📱 Found ${devices.length} device(s)");
 
       UsbDevice? nodeMCUDevice;
       for (var device in devices) {
-        print("Device: ${device.productName}, VID: ${device.vid}, PID: ${device.pid}");
-        if (device.vid == 4292 || device.vid == 6790 ||
-            device.productName?.toLowerCase().contains('ch340') == true ||
-            device.productName?.toLowerCase().contains('cp210') == true ||
-            device.productName?.toLowerCase().contains('usb-serial') == true) {
+        String deviceInfo = "Device: ${device.productName}, VID: ${device.vid}, PID: ${device.pid}";
+        print(deviceInfo);
+        onDeviceInfoUpdate?.call("🔍 $deviceInfo");
+
+        // IMPORTANT: Update these VID/PID values based on YOUR NodeMCU's actual values
+        if (device.productName?.toLowerCase().contains('jtag') == true ||
+            device.productName?.toLowerCase().contains('serial debug') == true ||
+            device.vid == 4292 || device.vid == 6790) {
           nodeMCUDevice = device;
-          print("NodeMCU device found: ${device.productName}");
+          String foundMsg = "✅ NodeMCU found: ${device.productName} (VID: ${device.vid}, PID: ${device.pid})";
+          print(foundMsg);
+          onDeviceInfoUpdate?.call(foundMsg);
           break;
         }
       }
 
       if (nodeMCUDevice == null) {
-        print("NodeMCU not found, using first device");
-        nodeMCUDevice = devices[0];
+        print("NodeMCU not found");
+        onDeviceInfoUpdate?.call("❌ NodeMCU not found! Check VID/PID above");
+        return null;
       }
 
-      _port = await nodeMCUDevice.create();
+      UsbPort? port = await nodeMCUDevice.create();
 
-      if (_port == null) {
-        print("Failed to create port");
-        isConnected = false;
-        onConnectionChanged?.call(false);
-        return false;
+      if (port == null) {
+        print("Failed to create NodeMCU port");
+        onDeviceInfoUpdate?.call("❌ Failed to create NodeMCU port");
+        return null;
       }
 
-      bool openResult = await _port!.open();
+      bool openResult = await port.open();
 
       if (!openResult) {
-        print("Failed to open port");
-        isConnected = false;
-        onConnectionChanged?.call(false);
-        return false;
+        print("Failed to open NodeMCU port");
+        onDeviceInfoUpdate?.call("❌ Failed to open NodeMCU port");
+        return null;
       }
 
-      await _port!.setDTR(true);
-      await _port!.setRTS(true);
-      await _port!.setPortParameters(
+      await port.setDTR(true);
+      await port.setRTS(true);
+      await port.setPortParameters(
         115200,
         UsbPort.DATABITS_8,
         UsbPort.STOPBITS_1,
         UsbPort.PARITY_NONE,
       );
 
-      print("Connected successfully!");
-
-      _buffer = '';
-      await Future.delayed(Duration(milliseconds: 1000)); // Increase delay
-
-      isConnected = true;
-      onConnectionChanged?.call(true);
-      startListening();
-
-      return true;
+      print("NodeMCU Connected successfully!");
+      onDeviceInfoUpdate?.call("✅ NodeMCU Connected successfully!");
+      return port;
     } catch (e) {
-      print("Connection error: $e");
-      isConnected = false;
-      onConnectionChanged?.call(false);
-      return false;
+      print("NodeMCU Connection error: $e");
+      onDeviceInfoUpdate?.call("❌ NodeMCU Error: $e");
+      return null;
     }
   }
 
+  Future<UsbPort?> _connectToBluetoothDongle() async {
+    try {
+      List<UsbDevice> devices = await UsbSerial.listDevices();
 
+      if (devices.isEmpty) {
+        print("No devices found");
+        onDeviceInfoUpdate?.call("❌ No devices found for Bluetooth");
+        return null;
+      }
 
+      UsbDevice? bluetoothDevice;
+      for (var device in devices) {
+        String deviceInfo = "BT Check - Device: ${device.productName}, VID: ${device.vid}, PID: ${device.pid}";
+        print(deviceInfo);
+        onDeviceInfoUpdate?.call("🔍 $deviceInfo");
+
+        if (device.productName?.toLowerCase().contains('hid') == true ||
+            device.productName?.toLowerCase().contains('keyboard') == true ||
+            device.vid == 65535) {
+          bluetoothDevice = device;
+          String foundMsg = "✅ Bluetooth found: ${device.productName} (VID: ${device.vid}, PID: ${device.pid})";
+          print(foundMsg);
+          onDeviceInfoUpdate?.call(foundMsg);
+          break;
+        }
+      }
+
+      if (bluetoothDevice == null) {
+        print("Bluetooth dongle not found");
+        onDeviceInfoUpdate?.call("⚠️ Bluetooth dongle not found (Check VID/PID above)");
+        return null;
+      }
+
+      UsbPort? port = await bluetoothDevice.create();
+
+      if (port == null) {
+        print("Failed to create Bluetooth port");
+        onDeviceInfoUpdate?.call("❌ Failed to create Bluetooth port");
+        return null;
+      }
+
+      bool openResult = await port.open();
+
+      if (!openResult) {
+        print("Failed to open Bluetooth port");
+        onDeviceInfoUpdate?.call("❌ Failed to open Bluetooth port");
+        return null;
+      }
+
+      await port.setDTR(true);
+      await port.setRTS(true);
+      await port.setPortParameters(
+        115200,
+        UsbPort.DATABITS_8,
+        UsbPort.STOPBITS_1,
+        UsbPort.PARITY_NONE,
+      );
+
+      print("Bluetooth Dongle Connected successfully!");
+      onDeviceInfoUpdate?.call("✅ Bluetooth Connected successfully!");
+      return port;
+    } catch (e) {
+      print("Bluetooth Connection error: $e");
+      onDeviceInfoUpdate?.call("❌ Bluetooth Error: $e");
+      return null;
+    }
+  }
+
+  Future<bool> connect() async {
+    try {
+      // Step 1: Connect to NodeMCU
+      print("Attempting to connect to NodeMCU...");
+      onDeviceInfoUpdate?.call("⏳ Connecting to NodeMCU...");
+      _port = await _connectToNodeMCU();
+
+      if (_port == null) {
+        print("Failed to connect to NodeMCU");
+        onDeviceInfoUpdate?.call("❌ Failed to connect to NodeMCU");
+        isConnected = false;
+        onConnectionChanged?.call(false);
+        return false;
+      }
+
+      isConnected = true;
+      onConnectionChanged?.call(true);
+      _buffer = '';
+      await Future.delayed(Duration(milliseconds: 500));
+      startListening(); // Start listening to NodeMCU
+
+      // Step 2: Connect to Bluetooth dongle
+      print("Attempting to connect to Bluetooth dongle...");
+      onDeviceInfoUpdate?.call("⏳ Connecting to Bluetooth dongle...");
+      _bluetoothPort = await _connectToBluetoothDongle();
+
+      if (_bluetoothPort == null) {
+        print("Warning: Bluetooth dongle not found, but NodeMCU is connected");
+        onDeviceInfoUpdate?.call("⚠️ NodeMCU OK, Bluetooth not available");
+        isBluetoothConnected = false;
+        onBluetoothConnectionChanged?.call(false);
+        return true; // NodeMCU connected successfully
+      }
+
+      isBluetoothConnected = true;
+      onBluetoothConnectionChanged?.call(true);
+      _bluetoothBuffer = '';
+      await Future.delayed(Duration(milliseconds: 500));
+      startBluetoothListening(); // Start listening to Bluetooth
+
+      print("Both NodeMCU and Bluetooth connected successfully!");
+      onDeviceInfoUpdate?.call("✅ Both devices connected successfully!");
+      return true;
+
+    } catch (e) {
+      print("Connection error: $e");
+      onDeviceInfoUpdate?.call("❌ Connection error: $e");
+      isConnected = false;
+      onConnectionChanged?.call(false);
+      isBluetoothConnected = false;
+      onBluetoothConnectionChanged?.call(false);
+      return false;
+    }
+  }
 
   // Send data to NodeMCU
   Future<void> sendData(String data) async {
@@ -156,29 +278,61 @@ class SerialService {
     });
   }
 
+  // NEW: Bluetooth listening
+  void startBluetoothListening() {
+    _bluetoothPort?.inputStream?.listen((Uint8List data) {
+      String received = String.fromCharCodes(data);
+      _bluetoothBuffer += received;
+
+      // Process complete messages (ending with newline)
+      while (_bluetoothBuffer.contains('\n')) {
+        int newlineIndex = _bluetoothBuffer.indexOf('\n');
+        String message = _bluetoothBuffer.substring(0, newlineIndex).trim();
+        _bluetoothBuffer = _bluetoothBuffer.substring(newlineIndex + 1);
+
+        if (message.isNotEmpty) {
+          try {
+            Map<String, dynamic> jsonData = json.decode(message);
+            onBluetoothDataReceived?.call(jsonData);
+            print("Received from Bluetooth: $jsonData");
+          } catch (e) {
+            print("Error parsing Bluetooth JSON: $e, Raw: $message");
+          }
+        }
+      }
+    });
+  }
+
   // Check connection status
   Future<bool> checkConnection() async {
     try {
       List<UsbDevice> devices = await UsbSerial.listDevices();
 
-      if (devices.isEmpty || _port == null) {
-        if (isConnected) {
-          isConnected = false;
-          onConnectionChanged?.call(false);
-        }
-        return false;
+      bool nodeConnected = devices.isNotEmpty && _port != null;
+      bool btConnected = devices.isNotEmpty && _bluetoothPort != null;
+
+      // Update NodeMCU connection status
+      if (nodeConnected != isConnected) {
+        isConnected = nodeConnected;
+        onConnectionChanged?.call(isConnected);
       }
 
-      if (!isConnected) {
-        isConnected = true;
-        onConnectionChanged?.call(true);
+      // Update Bluetooth connection status
+      if (btConnected != isBluetoothConnected) {
+        isBluetoothConnected = btConnected;
+        onBluetoothConnectionChanged?.call(isBluetoothConnected);
       }
-      return true;
+
+      return isConnected; // Return NodeMCU status as primary
     } catch (e) {
       print("Error checking connection: $e");
       if (isConnected) {
         isConnected = false;
         onConnectionChanged?.call(false);
+      }
+      if (isBluetoothConnected) {
+        isBluetoothConnected = false;
+        onBluetoothConnectionChanged?.call(false);
       }
       return false;
     }
@@ -188,10 +342,14 @@ class SerialService {
   Future<void> disconnect() async {
     try {
       await _port?.close();
+      await _bluetoothPort?.close();
       _port = null;
+      _bluetoothPort = null;
       isConnected = false;
+      isBluetoothConnected = false;
       onConnectionChanged?.call(false);
-      print("Disconnected");
+      onBluetoothConnectionChanged?.call(false);
+      print("Disconnected from both devices");
     } catch (e) {
       print("Error disconnecting: $e");
     }
